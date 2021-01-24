@@ -1,24 +1,14 @@
 from copy import deepcopy, copy
 import os
 import sys
-from tkinter import *
-from tkinter import messagebox
 import chess
 import pygame
-import pprint
 import chess.engine
 import random
 
 all_sprites = [[None for i in range(8)] for j in range(8)]
 already = (0, 0)
 
-
-
-
-def Check():
-    global check
-    x1, y1 = search_king()
-    board_color[y1][x1] = (235, 52, 52)
 
 def update_sprite(i, j, pos):
     all_sprites[i][j].rect = pos
@@ -44,16 +34,11 @@ def opponent(color):  # Смена игрока
     return WHITE
 
 
-def transformation(row, col):  # трансформация на последней клетке
-    figyre = input('Выбирете фигуру ')
-    if figyre.lower() == 'q':
-        board.field[row][col] = Queen(row, col, board.color)
-    elif figyre.lower() == 'r':
-        board.field[row][col] = Rook(row, col, board.color)
-    elif figyre.lower() == 'k':
-        board.field[row][col] = Knight(row, col, board.color)
-    elif figyre.lower() == 'b':
-        board.field[row][col] = Bishop(row, col, board.color)
+def transformation(tp, row1):  # трансформация на последней клетке
+    if isinstance(tp, Pawn):
+        if tp.end_field == row1:
+            return True
+    return False
 
 
 def castling(row, col, row1, col1):  # vожможна ли Рокировка
@@ -91,12 +76,14 @@ def king_is_under_attak(row, col, row1, col1):  # Стоит ли шах кор�
     if board.is_under_attack(*search_king(), opponent(board.color)):
         board.field[row1][col1].set_position(row, col)
         board.field = deepcopy(test_board.field)
+        print('ШАХ')
         return True
     return False
 
 
 WHITE = 0
 BLACK = 1
+trans = False
 
 
 class Board:  # Класс доски
@@ -176,9 +163,14 @@ class Board:  # Класс доски
     def render(self, surface):
         for i in range(self.height):
             for j in range(self.width):
-                pygame.draw.rect(surface,  board_color[i][j],
-                                (self.left + i * self.cell_size, self.top + j * self.cell_size,
-                                 self.cell_size, self.cell_size))
+                if (i + j) % 2 == 0:
+                    pygame.draw.rect(surface, (255, 255, 255),
+                                     (self.left + i * self.cell_size, self.top + j * self.cell_size,
+                                      self.cell_size, self.cell_size))
+                else:
+                    pygame.draw.rect(surface, (125, 1, 1),
+                                     (self.left + i * self.cell_size, self.top + j * self.cell_size,
+                                      self.cell_size, self.cell_size))
 
     def get_cell(self, mouse_pos):
         xx, yy = mouse_pos
@@ -204,7 +196,6 @@ class Board:  # Класс доски
 
     def move_piece(self, row, col, row1, col1):  # Куча проверок если мы хотим сдвинуть фигуру,
         # правда, если мы можем переместить туда кого нибудь, иначе хер
-        global all_sprites, board_color
         if not correct_coords(row, col) or not correct_coords(row1, col1):
             return False
         if row == row1 and col == col1:
@@ -231,24 +222,24 @@ class Board:  # Класс доски
                 all_sprites[row][3], all_sprites[row][0] = all_sprites[row][0], None
         elif king_is_under_attak(row, col, row1, col1):
             return False
-
         self.field[row][col] = None
         self.field[row1][col1] = temp_piece
         temp_piece.set_position(row1, col1)
-        if isinstance(temp_piece, Pawn):
+
+        '''if isinstance(temp_piece, Pawn):
             if temp_piece.end_field == row1:
-                transformation(row1, col1)
+                transformation(row1, col1)'''
+
+        if transformation(temp_piece, row1):
+            global trans
+            board.field[row1][col1] = Queen(row1, col1, board.color)
+            trans = True
+
+
+
         if isinstance(temp_piece, (King, Rook)):
             temp_piece.move = True
         self.color = opponent(self.color)
-        move = s[col] + str(8-row) + s[col1] + str(8-row1)
-        chessboard.push_uci(move)
-        update_sprite(row, col, (col1 * 100, row1 * 100))
-        all_sprites[row][col], all_sprites[row1][col1] = \
-            None, all_sprites[row][col]
-        board_color = [[(196, 14, 0) if (i + j) % 2 == 1 else (255, 255, 255) for i in range(8)] for j in range(8)]
-        if (chessboard.is_check()):
-            Check()
         return True
 
     def is_under_attack(self, row, col, color):  # является ли поле под боем относительно
@@ -263,13 +254,12 @@ class Board:  # Класс доски
 
 
 def helper():
-    global helping
     result = str(engine.play(chessboard, chess.engine.Limit(time=0.5)).move)
     result = f[result[0]], int(result[1]) - 1, f[result[2]], int(result[3]) - 1
+    print(result)
     x1, y1, x2, y2 = result[0], result[1], result[2], result[3]
-    board_color[x1][7-y1] = (110, 52, 235)
-    board_color[x2][7-y2] = (110, 52, 235)
-    helping = 1
+    pygame.draw.rect(screen, (0, 204, 255), (x1 * 100, (7 - y1) * 100, 100, 100))
+    pygame.draw.rect(screen, (0, 204, 255), (x2 * 100, (7 - y2) * 100, 100, 100))
 
 
 class Pawn:  # просто пешка
@@ -533,10 +523,8 @@ def print_board(board_temp):  # рисуем доску
 
 
 def end():
-    global board, screen, chessboard, all_sprites, board_color
-    messagebox.showinfo('Мат', 'Мат')
+    global board, screen, chessboard, all_sprites
     board = Board()
-    board_color = [[(196, 14, 0) if (i + j) % 2 == 1 else (255, 255, 255) for i in range(8)] for j in range(8)]
     all_sprites = [[None for _ in range(8)] for _ in range(8)]
     chessboard = chess.Board()
     board.start(screen)
@@ -551,7 +539,6 @@ def update_screen():
 
 if __name__ == '__main__':
     board = Board()
-    Tk().wm_withdraw()
     test_board = Board()
     test_board.field = deepcopy(board.field)
     pygame.init()
@@ -566,10 +553,7 @@ if __name__ == '__main__':
     prompt = load_image('prompt.png')
     engine = chess.engine.SimpleEngine.popen_uci('data/stockfish')
     board.start(screen)
-    move_sound = sound1 = pygame.mixer.Sound('data/move.wav')
     helping = 0
-    board_color = [[(196, 14, 0) if (i+j)%2 == 1 else (255, 255, 255) for i in range(8) ] for j in range(8)]
-    check = 0
     clicked = False
     running = True
     piece = None
@@ -601,18 +585,33 @@ if __name__ == '__main__':
                 if not board.move_piece(already[1], already[0], j, i):
                     update_sprite(already[1], already[0], (already[0] * 100, already[1] * 100))
                 else:
-                    move_sound.play()
-                    # board_color = [[(196, 14, 0) if (i + j) % 2 == 1 else (255, 255, 255) for i in range(8)] for j in range(8)]
+                    if trans:
+                        move = s[already[0]] + str(8 - already[1]) + s[i] + str(8 - j) + 'q'
+                        trans = False
+                        update_sprite(already[1], already[0], (i * 100, j * 100))
+                        all_sprites[already[1]][already[0]] = None
+                        if board.field[j][i] and board.field[j][i].get_color() == BLACK:
+                            image = load_image(board.field[j][i].__class__.__name__ + '.png')
+                        elif board.field[j][i]:
+                            image = load_image('W' + board.field[j][i].__class__.__name__ + '.png')
+                        all_sprites[j][i].image = image
+                    else:
+                        move = s[already[0]] + str(8 - already[1]) + s[i] + str(8 - j)
+                        update_sprite(already[1], already[0], (i * 100, j * 100))
+                        all_sprites[already[1]][already[0]], all_sprites[j][i] = \
+                            None, all_sprites[already[1]][already[0]]
+                    chessboard.push_uci(move)
                     if chessboard.is_checkmate():
                         end()
                 clicked = False
             if event.type == pygame.MOUSEMOTION:
                 if clicked:
                     update_sprite(already[1], already[0], (event.pos[0] - 50, event.pos[1] - 50))
+        if not helping:
+            screen.fill((255, 255, 255))
+            screen.blit(prompt, (300, 840))
+            board.render(screen)
 
-        screen.fill((255, 255, 255))
-        screen.blit(prompt, (300, 840))
-        board.render(screen)
         update_screen()
         pygame.display.flip()
     pygame.quit()
